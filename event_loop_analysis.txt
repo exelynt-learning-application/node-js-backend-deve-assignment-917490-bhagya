@@ -1,0 +1,477 @@
+# Event Loop Analysis
+
+**Module:** Understanding the Event Loop & Asynchronous Programming
+
+**Assignment Title:** Event Loop Analysis
+
+## 1. Introduction
+
+The Event Loop is an important concept in Node.js that allows JavaScript to handle asynchronous operations efficiently.
+
+Node.js uses the V8 JavaScript engine to execute JavaScript and provides asynchronous APIs for tasks such as timers, file operations, and network requests.
+
+The Event Loop helps Node.js manage callbacks without blocking the main JavaScript thread while waiting for many I/O operations to complete.
+
+Understanding the Event Loop helps developers predict the execution order of synchronous code, callbacks, Promises, and timers.
+
+## 2. Important Concepts
+
+### A. Synchronous Code
+
+Synchronous code executes one statement at a time in the order it appears.
+
+Example:
+
+```javascript
+console.log("First");
+console.log("Second");
+console.log("Third");
+```
+
+Output:
+
+```text
+First
+Second
+Third
+```
+
+Explanation: Each statement runs before the next statement.
+
+### B. Asynchronous Code
+
+Asynchronous operations allow the program to continue executing while waiting for an operation to complete.
+
+Example:
+
+```javascript
+console.log("Start");
+
+setTimeout(() => {
+  console.log("Timer completed");
+}, 1000);
+
+console.log("End");
+```
+
+Output:
+
+```text
+Start
+End
+Timer completed
+```
+
+Explanation: The timer callback executes after the synchronous code has completed. The delay specifies a minimum waiting time, not an exact execution time.
+
+### C. Call Stack
+
+The call stack tracks the JavaScript functions currently being executed.
+
+When a function is called, it is added to the stack. When it finishes, it is removed.
+
+### D. Callback Queue and Event Loop
+
+Callbacks associated with timers and other asynchronous operations can become eligible to run when their conditions are satisfied.
+
+The Event Loop helps schedule their execution when the JavaScript call stack is available.
+
+### E. Microtasks
+
+Promise callbacks registered with `.then()`, `.catch()`, and `.finally()` normally execute as microtasks.
+
+In standard Node.js execution, pending microtasks are processed after the current synchronous JavaScript execution finishes and before the Event Loop proceeds to another event-loop phase.
+
+### F. Event Loop Phases
+
+Important Node.js Event Loop phases include:
+
+- **Timers:** Executes eligible timer callbacks.
+- **Pending callbacks:** Executes certain deferred system-operation callbacks.
+- **Poll:** Processes I/O events and related callbacks.
+- **Check:** Executes callbacks registered with `setImmediate()`.
+- **Close callbacks:** Handles certain resource-closing events.
+
+Node.js also has a special `process.nextTick()` queue, which is handled separately from the standard Promise microtask queue.
+
+## 3. Code Snippet 1: Synchronous Execution
+
+Code:
+
+```javascript
+console.log("A");
+console.log("B");
+console.log("C");
+```
+
+Predicted Output:
+
+```text
+A
+B
+C
+```
+
+Explanation:
+
+All three statements are synchronous. They execute in the order they appear in the source code.
+
+Conclusion: Synchronous code executes sequentially.
+
+## 4. Code Snippet 2: setTimeout()
+
+Code:
+
+```javascript
+console.log("Start");
+
+setTimeout(() => {
+  console.log("Timeout");
+}, 0);
+
+console.log("End");
+```
+
+Predicted Output:
+
+```text
+Start
+End
+Timeout
+```
+
+Explanation:
+
+1. `"Start"` is printed first.
+2. `setTimeout()` schedules a callback.
+3. `"End"` is printed before the callback executes.
+4. The timer callback runs when it becomes eligible and the Event Loop can process it.
+
+Conclusion: A zero-millisecond timer does not execute immediately.
+
+## 5. Code Snippet 3: Promises and Synchronous Code
+
+Code:
+
+```javascript
+console.log("Start");
+
+Promise.resolve().then(() => {
+  console.log("Promise");
+});
+
+console.log("End");
+```
+
+Predicted Output:
+
+```text
+Start
+End
+Promise
+```
+
+Explanation:
+
+1. `"Start"` is printed.
+2. The Promise callback is scheduled as a microtask.
+3. `"End"` is printed during synchronous execution.
+4. The Promise callback executes after the synchronous code finishes.
+
+Conclusion: Promise callbacks do not interrupt the current synchronous execution.
+
+## 6. Code Snippet 4: setTimeout() vs Promise
+
+Code:
+
+```javascript
+console.log("Start");
+
+setTimeout(() => {
+  console.log("Timeout");
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log("Promise");
+});
+
+console.log("End");
+```
+
+Predicted Output:
+
+```text
+Start
+End
+Promise
+Timeout
+```
+
+Explanation:
+
+1. `"Start"` is printed.
+2. The timer callback is scheduled.
+3. The Promise callback is scheduled as a microtask.
+4. `"End"` is printed.
+5. The Promise microtask executes before the timer callback in this standard top-level example.
+
+Conclusion: Promise microtasks are processed before the Event Loop proceeds to timer callbacks in this example.
+
+## 7. Code Snippet 5: process.nextTick() and Promise
+
+Code:
+
+```javascript
+console.log("Start");
+
+process.nextTick(() => {
+  console.log("Next Tick");
+});
+
+Promise.resolve().then(() => {
+  console.log("Promise");
+});
+
+console.log("End");
+```
+
+Predicted Output:
+
+```text
+Start
+End
+Next Tick
+Promise
+```
+
+Explanation:
+
+1. `"Start"` is printed.
+2. The `process.nextTick()` callback is queued.
+3. The Promise callback is queued as a microtask.
+4. `"End"` is printed.
+5. In this normal CommonJS top-level example, the `process.nextTick()` callback runs before the Promise callback.
+
+Conclusion: In typical CommonJS execution, Node.js processes the `process.nextTick()` queue before Promise microtasks after the current JavaScript operation finishes.
+
+Note: Module type and execution context can affect the ordering. For example, top-level code in an ES module is evaluated through Promise-based module machinery, so the ordering can differ.
+
+## 8. Code Snippet 6: Nested Promises
+
+Code:
+
+```javascript
+console.log("Start");
+
+Promise.resolve().then(() => {
+  console.log("Promise 1");
+
+  Promise.resolve().then(() => {
+    console.log("Promise 2");
+  });
+});
+
+Promise.resolve().then(() => {
+  console.log("Promise 3");
+});
+
+console.log("End");
+```
+
+Predicted Output:
+
+```text
+Start
+End
+Promise 1
+Promise 3
+Promise 2
+```
+
+Explanation:
+
+1. `"Start"` and `"End"` execute synchronously.
+2. The first Promise callback prints `"Promise 1"`.
+3. The second Promise callback, already queued, prints `"Promise 3"`.
+4. The nested Promise callback prints `"Promise 2"` after it has been queued by the first callback.
+
+Conclusion: Promise callbacks execute according to microtask queue order. A nested Promise callback is queued when the outer callback runs.
+
+## 9. Code Snippet 7: setImmediate() and setTimeout()
+
+Code:
+
+```javascript
+setTimeout(() => {
+  console.log("Timeout");
+}, 0);
+
+setImmediate(() => {
+  console.log("Immediate");
+});
+```
+
+Expected behavior:
+
+The order of `"Timeout"` and `"Immediate"` is not guaranteed when these APIs are scheduled from the main module at top level.
+
+Possible output:
+
+```text
+Timeout
+Immediate
+```
+
+Or:
+
+```text
+Immediate
+Timeout
+```
+
+Explanation:
+
+`setTimeout()` schedules a timer callback, while `setImmediate()` schedules a callback for the check phase. Their relative execution order can depend on timing and runtime conditions.
+
+Inside an I/O callback, `setImmediate()` generally executes before a zero-delay timer scheduled in that same callback.
+
+Conclusion: Do not assume a fixed ordering between `setTimeout(..., 0)` and `setImmediate()` at top level.
+
+## 10. Code Snippet 8: Asynchronous File Reading
+
+Code:
+
+```javascript
+const fs = require("node:fs");
+
+console.log("Start");
+
+fs.readFile(__filename, "utf8", (error, data) => {
+  if (error) {
+    console.error(error.message);
+    return;
+  }
+
+  console.log("File read completed");
+});
+
+console.log("End");
+```
+
+Predicted Output:
+
+```text
+Start
+End
+File read completed
+```
+
+Explanation:
+
+1. `"Start"` is printed.
+2. `fs.readFile()` starts an asynchronous file-reading operation.
+3. `"End"` is printed while the file operation is in progress.
+4. When the file has been read, its callback executes and prints `"File read completed"`.
+
+The code assumes it is saved in a file that can be read.
+
+Conclusion: Asynchronous file operations allow other JavaScript code to execute while waiting for I/O.
+
+## 11. Code Snippet 9: async/await
+
+Code:
+
+```javascript
+async function example() {
+  console.log("Inside function");
+
+  await Promise.resolve();
+
+  console.log("After await");
+}
+
+console.log("Start");
+
+example();
+
+console.log("End");
+```
+
+Predicted Output:
+
+```text
+Start
+Inside function
+End
+After await
+```
+
+Explanation:
+
+1. `"Start"` is printed.
+2. The function begins executing immediately and prints `"Inside function"`.
+3. `await` suspends the function until the awaited Promise has settled and the continuation can resume.
+4. The outer synchronous code prints `"End"`.
+5. The function resumes and prints `"After await"`.
+
+Conclusion: `async/await` makes asynchronous code easier to read, but it does not make the awaited continuation execute synchronously.
+
+## 12. Code Snippet 10: Blocking the Event Loop
+
+Code:
+
+```javascript
+console.log("Start");
+
+setTimeout(() => {
+  console.log("Timer");
+}, 0);
+
+const start = Date.now();
+
+while (Date.now() - start < 1000) {
+  // Simulate a CPU-intensive operation.
+}
+
+console.log("End");
+```
+
+Predicted Output:
+
+```text
+Start
+End
+Timer
+```
+
+Explanation:
+
+1. `"Start"` is printed.
+2. The timer callback is scheduled.
+3. The `while` loop blocks the main JavaScript thread for approximately one second.
+4. `"End"` is printed when the loop finishes.
+5. The timer callback executes afterward.
+
+Conclusion: CPU-intensive synchronous operations block the Event Loop and delay other callbacks.
+
+Note: The loop duration is approximate and may vary depending on the system.
+
+## 13. Best Practices for Asynchronous Programming
+
+- Prefer `async/await` when it makes asynchronous logic easier to understand.
+- Handle rejected Promises using `try/catch` or `.catch()`.
+- Avoid long-running synchronous operations on the main JavaScript thread.
+- Use asynchronous file-system APIs for I/O-heavy tasks when appropriate.
+- Do not assume timers execute at an exact time.
+- Use worker threads or background services for suitable CPU-intensive workloads.
+- Test execution order in the actual Node.js runtime when behavior depends on module type or event-loop phase.
+
+## 14. Conclusion
+
+The Node.js Event Loop enables efficient asynchronous programming by coordinating JavaScript execution with timers, I/O callbacks, Promise microtasks, and other scheduled work.
+
+The examples demonstrate how synchronous statements, Promises, `process.nextTick()`, timers, `setImmediate()`, file operations, and `async/await` affect execution order.
+
+Understanding these concepts helps developers write responsive applications, avoid blocking the main thread, and predict asynchronous behavior accurately.
+
+**Thank you.**
