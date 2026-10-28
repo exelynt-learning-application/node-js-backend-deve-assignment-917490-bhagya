@@ -1,0 +1,528 @@
+# Explore package.json
+
+**Module:** Installing Node.js & Working with npm
+
+**Assignment Title:** Explore package.json
+
+## 1. Introduction
+
+`package.json` is an important file in Node.js projects. It stores information about the project, its dependencies, scripts, version, and other configuration details.
+
+It is used by npm (Node Package Manager) to manage packages and run project commands.
+
+Example:
+
+```json
+{
+  "name": "my-node-app",
+  "version": "1.0.0",
+  "description": "My first Node.js application",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
+```
+
+## 2. Important Fields Inside package.json
+
+### 1. name
+
+The `name` field specifies the name of the project or package.
+
+Example:
+
+```json
+"name": "my-node-app"
+```
+
+**Purpose:** It identifies the project. Package names must follow npm naming rules.
+
+### 2. version
+
+The `version` field specifies the current version of the project.
+
+Example:
+
+```json
+"version": "1.0.0"
+```
+
+**Purpose:** It helps track project releases and updates.
+
+Version numbers commonly follow Semantic Versioning (SemVer):
+
+- Major: Breaking changes
+- Minor: New features that maintain backward compatibility
+- Patch: Bug fixes that maintain backward compatibility
+
+For example, `1.2.3` represents major version 1, minor version 2, and patch version 3.
+
+### 3. description
+
+The `description` field provides a short explanation of the project.
+
+Example:
+
+```json
+"description": "A simple application built with Node.js"
+```
+
+**Purpose:** It helps developers understand the project's purpose.
+
+### 4. main
+
+The `main` field specifies the package's primary entry point for traditional CommonJS package loading.
+
+Example:
+
+```json
+"main": "index.js"
+```
+
+**Purpose:** When another project loads this package using CommonJS `require()`, Node.js can use this file as the default entry point.
+
+Note: The `main` field does not automatically start your application.
+
+### 5. scripts
+
+The `scripts` field defines commands that can be executed using npm.
+
+Example:
+
+```json
+"scripts": {
+  "start": "node index.js",
+  "dev": "node --watch index.js",
+  "test": "node --test"
+}
+```
+
+**Purpose:** It simplifies common development tasks.
+
+Commands:
+
+- `npm start` runs the start script.
+- `npm run dev` runs the development script.
+- `npm test` runs the test script.
+
+The commands work when the corresponding files and tools are available and configured.
+
+### 6. dependencies
+
+The `dependencies` field lists packages required by the application at runtime.
+
+Example:
+
+```json
+"dependencies": {
+  "express": "^5.1.0"
+}
+```
+
+**Purpose:** It records the external packages the application needs.
+
+Install a package using:
+
+```bash
+npm install express
+```
+
+npm normally adds the package to `dependencies` automatically.
+
+### 7. devDependencies
+
+The `devDependencies` field lists packages used mainly during development and testing.
+
+Example:
+
+```json
+"devDependencies": {
+  "nodemon": "^3.1.0"
+}
+```
+
+**Purpose:** It keeps development tools separate from runtime dependencies.
+
+Install a development dependency using:
+
+```bash
+npm install --save-dev nodemon
+```
+
+Examples include testing tools, code formatters, and development servers.
+
+### 8. peerDependencies
+
+The `peerDependencies` field specifies packages that a library expects the consuming project to provide or use compatibly.
+
+Example:
+
+```json
+"peerDependencies": {
+  "react": "^18.0.0 || ^19.0.0"
+}
+```
+
+**Purpose:** It helps libraries declare compatibility with packages supplied by the host application.
+
+It is commonly used by plugins and reusable libraries.
+
+### 9. optionalDependencies
+
+The `optionalDependencies` field lists packages that npm may install but that the application should be able to handle if they are unavailable.
+
+Example:
+
+```json
+"optionalDependencies": {
+  "some-optional-package": "^1.0.0"
+}
+```
+
+**Purpose:** It allows certain packages to be optional rather than essential for installation.
+
+The application must handle cases where an optional package is missing.
+
+### 10. type
+
+The `type` field determines how Node.js interprets `.js` files in the package's scope.
+
+Example:
+
+```json
+"type": "module"
+```
+
+Common values:
+
+- `"module"`: Treats `.js` files as ES modules.
+- `"commonjs"`: Treats `.js` files as CommonJS modules.
+
+Example using ES modules:
+
+```javascript
+import express from "express";
+```
+
+Example using CommonJS:
+
+```javascript
+const express = require("express");
+```
+
+**Purpose:** It helps Node.js determine which JavaScript module system to use.
+
+### 11. engines
+
+The `engines` field specifies the Node.js or npm versions supported by a project.
+
+Example:
+
+```json
+"engines": {
+  "node": ">=20",
+  "npm": ">=10"
+}
+```
+
+**Purpose:** It communicates the expected runtime environment to developers and package managers.
+
+Depending on npm configuration, an incompatible version may produce a warning or be handled differently.
+
+### 12. license
+
+The `license` field specifies the project's software license.
+
+Example:
+
+```json
+"license": "MIT"
+```
+
+**Purpose:** It tells users which license terms apply to the package.
+
+Common examples include MIT, Apache-2.0, and ISC. The selected license should match the project's actual licensing terms.
+
+### 13. author
+
+The `author` field identifies the person or organization responsible for the package.
+
+Example:
+
+```json
+"author": "Development Team"
+```
+
+**Purpose:** It provides attribution and basic project information.
+
+### 14. keywords
+
+The `keywords` field contains an array of descriptive words related to the package.
+
+Example:
+
+```json
+"keywords": [
+  "nodejs",
+  "npm",
+  "backend",
+  "javascript"
+]
+```
+
+**Purpose:** It helps people discover a published package through package registry searches.
+
+### 15. repository
+
+The `repository` field identifies where the project's source code is hosted.
+
+Example:
+
+```json
+"repository": {
+  "type": "git",
+  "url": "https://github.com/username/my-node-app.git"
+}
+```
+
+**Purpose:** It provides a link to the project's source code repository.
+
+Replace the example URL with your actual GitHub repository URL.
+
+### 16. bugs
+
+The `bugs` field specifies where users can report problems with a package.
+
+Example:
+
+```json
+"bugs": {
+  "url": "https://github.com/username/my-node-app/issues"
+}
+```
+
+**Purpose:** It directs users to the project's issue tracker.
+
+### 17. homepage
+
+The `homepage` field specifies the project's main website or documentation page.
+
+Example:
+
+```json
+"homepage": "https://github.com/username/my-node-app#readme"
+```
+
+**Purpose:** It helps users find project information and documentation.
+
+### 18. private
+
+The `private` field prevents accidental publication to the npm registry when set to `true`.
+
+Example:
+
+```json
+"private": true
+```
+
+**Purpose:** It is useful for private applications that should not be published as npm packages.
+
+Important: This field does not make the source code private on GitHub. Repository visibility must be configured separately.
+
+### 19. files
+
+The `files` field specifies which files and directories should be included when a package is published to npm.
+
+Example:
+
+```json
+"files": [
+  "src/",
+  "index.js",
+  "README.md"
+]
+```
+
+**Purpose:** It helps control the contents of a published package.
+
+npm also applies certain default inclusion and exclusion rules, so this field is not the only factor determining the final package contents.
+
+### 20. bin
+
+The `bin` field defines executable commands provided by an npm package.
+
+Example:
+
+```json
+"bin": {
+  "my-tool": "./bin/cli.js"
+}
+```
+
+**Purpose:** It allows users to run a package's command-line tool after installation.
+
+The target file generally needs a valid executable entry point and, on Unix-like systems, an appropriate shebang such as `#!/usr/bin/env node`.
+
+### 21. exports
+
+The `exports` field defines which entry points consumers can access when importing or requiring a package.
+
+Example:
+
+```json
+"exports": {
+  ".": "./index.js",
+  "./utils": "./utils.js"
+}
+```
+
+**Purpose:** It provides explicit public entry points and can prevent consumers from importing undeclared internal paths.
+
+It supports more advanced configurations, including separate entry points for CommonJS and ES modules.
+
+### 22. workspaces
+
+The `workspaces` field identifies multiple packages managed together in a single repository.
+
+Example:
+
+```json
+"workspaces": [
+  "packages/*",
+  "apps/*"
+]
+```
+
+**Purpose:** It supports npm workspaces, which are useful for monorepos containing multiple applications or libraries.
+
+## 3. Complete package.json Example
+
+The following example combines several important fields into one project configuration.
+
+```json
+{
+  "name": "my-node-app",
+  "version": "1.0.0",
+  "description": "A basic Node.js backend application",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "author": "Development Team",
+  "keywords": [
+    "nodejs",
+    "backend",
+    "npm"
+  ],
+  "private": true
+}
+```
+
+This is an illustrative configuration. The selected package versions, scripts, and runtime requirements should be checked against the actual project environment.
+
+## 4. How to Create package.json
+
+Follow these steps:
+
+**Step 1:** Install Node.js from the official website: https://nodejs.org/
+
+**Step 2:** Check the installed versions.
+
+```bash
+node --version
+npm --version
+```
+
+**Step 3:** Create a project folder.
+
+```bash
+mkdir my-node-app
+cd my-node-app
+```
+
+**Step 4:** Initialize the project.
+
+```bash
+npm init -y
+```
+
+This command creates a default `package.json` file.
+
+**Step 5:** Install Express.
+
+```bash
+npm install express
+```
+
+This adds Express to the project's dependencies.
+
+**Step 6:** Create an `index.js` file and add the following code:
+
+```javascript
+const express = require("express");
+
+const app = express();
+const PORT = 3000;
+
+app.get("/", (req, res) => {
+  res.send("Hello from Node.js!");
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
+```
+
+**Step 7:** Add a start script to `package.json`.
+
+```json
+"scripts": {
+  "start": "node index.js"
+}
+```
+
+**Step 8:** Start the application.
+
+```bash
+npm start
+```
+
+Open `http://localhost:3000` in your browser to see the response.
+
+## 5. package.json vs package-lock.json
+
+These two files serve different purposes.
+
+**package.json**
+- Contains project metadata and dependency requirements.
+- Defines scripts and configuration.
+- Usually allows dependency versions within specified ranges.
+
+**package-lock.json**
+- Records the resolved dependency versions and dependency tree.
+- Helps reproduce consistent installations.
+- Should generally be committed to Git for applications.
+
+For a typical application, commit both files to GitHub. Do not manually edit `package-lock.json` unless you understand the consequences.
+
+## 6. Conclusion
+
+The `package.json` file is a central part of Node.js development. It defines project information, dependencies, scripts, module settings, compatibility requirements, and package entry points.
+
+Understanding its fields helps developers install packages, run commands, manage project versions, collaborate with others, and maintain reliable Node.js applications.
+
+**Thank you.**
