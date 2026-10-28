@@ -5,34 +5,251 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ============================================
-// 1. MIDDLEWARE
+// 1. CONSTANTS
 // ============================================
 
-app.use(express.json());
+const LIMITS = Object.freeze({
+  NAME_MIN: 2,
+  NAME_MAX: 80,
+  COURSE_MIN: 2,
+  COURSE_MAX: 100,
+  AGE_MIN: 16,
+  AGE_MAX: 100
+});
 
-// Request logging middleware
+const ALLOWED_FIELDS = Object.freeze(["name", "course", "age"]);
+
+// ============================================
+// 2. DATA / SERVICE
+// ============================================
+
+// Encapsulated in-memory repository.
+// Replace this module's storage with a database for persistence.
+const studentRepository = (() => {
+  let students = [
+    { id: 1, name: "Rahul Sharma", course: "Node.js", age: 21 },
+    { id: 2, name: "Priya Patil", course: "Express.js", age: 22 },
+    { id: 3, name: "Amit Deshmukh", course: "JavaScript", age: 20 }
+  ];
+
+  let nextId = 4;
+
+  return {
+    getAll() {
+      return students.map(student => ({ ...student }));
+    },
+
+    getById(id) {
+      const student = students.find(item => item.id === id);
+      return student ? { ...student } : null;
+    },
+
+    create(data) {
+      const student = {
+        id: nextId++,
+        name: data.name.trim(),
+        course: data.course.trim(),
+        age: data.age
+      };
+
+      students.push(student);
+      return { ...student };
+    },
+
+    replace(id, data) {
+      const index = students.findIndex(item => item.id === id);
+      if (index === -1) return null;
+
+      const student = {
+        id,
+        name: data.name.trim(),
+        course: data.course.trim(),
+        age: data.age
+      };
+
+      students[index] = student;
+      return { ...student };
+    },
+
+    update(id, updates) {
+      const index = students.findIndex(item => item.id === id);
+      if (index === -1) return null;
+
+      const current = students[index];
+      const student = {
+        ...current,
+        ...updates,
+        name: updates.name === undefined
+          ? current.name
+          : updates.name.trim(),
+        course: updates.course === undefined
+          ? current.course
+          : updates.course.trim()
+      };
+
+      students[index] = student;
+      return { ...student };
+    },
+
+    remove(id) {
+      const index = students.findIndex(item => item.id === id);
+      if (index === -1) return null;
+
+      return { ...students.splice(index, 1)[0] };
+    }
+  };
+})();
+
+// ============================================
+// 3. MIDDLEWARE
+// ============================================
+
+app.use(express.json({ limit: "100kb" }));
+
 app.use((req, res, next) => {
   console.log(
-    `${new Date().toISOString()} ${req.method} ${req.url}`
+    `${new Date().toISOString()} ${req.method} ${req.originalUrl}`
   );
   next();
 });
 
 // ============================================
-// 2. DATA
+// 4. SHARED VALIDATION HELPERS
 // ============================================
 
-// Sample data stored in memory
-let students = [
-  { id: 1, name: "Rahul Sharma", course: "Node.js", age: 21 },
-  { id: 2, name: "Priya Patil", course: "Express.js", age: 22 },
-  { id: 3, name: "Amit Deshmukh", course: "JavaScript", age: 20 }
-];
+function parseStudentId(req, res, next) {
+  const rawId = req.params.id;
 
-let nextId = 4;
+  // Reject decimals, zero, negatives, signs, and non-numeric IDs.
+  if (!/^[1-9]\d*$/.test(rawId)) {
+    return res.status(400).json({
+      success: false,
+      message: "Student ID must be a positive integer."
+    });
+  }
+
+  const id = Number(rawId);
+
+  if (!Number.isSafeInteger(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Student ID is outside the supported range."
+    });
+  }
+
+  req.studentId = id;
+  next();
+}
+
+function validateField(field, value) {
+  switch (field) {
+    case "name":
+      return (
+        typeof value === "string" &&
+        value.trim().length >= LIMITS.NAME_MIN &&
+        value.trim().length <= LIMITS.NAME_MAX
+      );
+
+    case "course":
+      return (
+        typeof value === "string" &&
+        value.trim().length >= LIMITS.COURSE_MIN &&
+        value.trim().length <= LIMITS.COURSE_MAX
+      );
+
+    case "age":
+      return (
+        Number.isInteger(value) &&
+        value >= LIMITS.AGE_MIN &&
+        value <= LIMITS.AGE_MAX
+      );
+
+    default:
+      return false;
+  }
+}
+
+function validateStudent(data, partial = false) {
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data)
+  ) {
+    return {
+      valid: false,
+      message: "Request body must be a JSON object."
+    };
+  }
+
+  const fields = Object.keys(data);
+
+  if (partial && fields.length === 0) {
+    return {
+      valid: false,
+      message: "Provide at least one field to update."
+    };
+  }
+
+  const invalidFields = fields.filter(
+    field => !ALLOWED_FIELDS.includes(field)
+  );
+
+  if (invalidFields.length > 0) {
+    return {
+      valid: false,
+      message: "Unsupported field(s) provided.",
+      fields: invalidFields
+    };
+  }
+
+  if (!partial) {
+    const requiredFields = ["name", "course", "age"];
+    const missingFields = requiredFields.filter(
+      field => !Object.prototype.hasOwnProperty.call(data, field)
+    );
+
+    if (missingFields.length > 0) {
+      return {
+        valid: false,
+        message: "Name, course, and age are required.",
+        fields: missingFields
+      };
+    }
+  }
+
+  for (const field of fields) {
+    if (!validateField(field, data[field])) {
+      const messages = {
+        name: "Name must be between 2 and 80 characters.",
+        course: "Course must be between 2 and 100 characters.",
+        age: "Age must be an integer between 16 and 100."
+      };
+
+      return {
+        valid: false,
+        message: messages[field]
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+function sendValidationError(res, result) {
+  const response = {
+    success: false,
+    message: result.message
+  };
+
+  if (result.fields) {
+    response.fields = result.fields;
+  }
+
+  return res.status(400).json(response);
+}
 
 // ============================================
-// 3. ROUTES - HOME
+// 5. HOME ROUTE
 // ============================================
 
 app.get("/", (req, res) => {
@@ -52,10 +269,12 @@ app.get("/", (req, res) => {
 });
 
 // ============================================
-// 4. GET ALL STUDENTS
+// 6. GET ALL STUDENTS
 // ============================================
 
 app.get("/api/students", (req, res) => {
+  const students = studentRepository.getAll();
+
   res.status(200).json({
     success: true,
     count: students.length,
@@ -64,20 +283,11 @@ app.get("/api/students", (req, res) => {
 });
 
 // ============================================
-// 5. GET STUDENT BY ID
+// 7. GET STUDENT BY ID
 // ============================================
 
-app.get("/api/students/:id", (req, res) => {
-  const id = Number(req.params.id);
-
-  if (!Number.isInteger(id) || id < 1) {
-    return res.status(400).json({
-      success: false,
-      message: "Student ID must be a positive integer."
-    });
-  }
-
-  const student = students.find(item => item.id === id);
+app.get("/api/students/:id", parseStudentId, (req, res) => {
+  const student = studentRepository.getById(req.studentId);
 
   if (!student) {
     return res.status(404).json({
@@ -93,128 +303,40 @@ app.get("/api/students/:id", (req, res) => {
 });
 
 // ============================================
-// 6. CREATE A STUDENT
+// 8. CREATE STUDENT
 // ============================================
 
 app.post("/api/students", (req, res) => {
-  const { name, course, age } = req.body || {};
+  const validation = validateStudent(req.body);
 
-  if (
-    typeof name !== "string" ||
-    name.trim().length < 2 ||
-    name.trim().length > 80
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Name must be between 2 and 80 characters."
-    });
+  if (!validation.valid) {
+    return sendValidationError(res, validation);
   }
 
-  if (
-    typeof course !== "string" ||
-    course.trim().length < 2 ||
-    course.trim().length > 100
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Course must be between 2 and 100 characters."
-    });
-  }
-
-  if (!Number.isInteger(age) || age < 16 || age > 100) {
-    return res.status(400).json({
-      success: false,
-      message: "Age must be an integer between 16 and 100."
-    });
-  }
-
-  const newStudent = {
-    id: nextId++,
-    name: name.trim(),
-    course: course.trim(),
-    age
-  };
-
-  students.push(newStudent);
+  const student = studentRepository.create(req.body);
 
   res.status(201).json({
     success: true,
     message: "Student created successfully.",
-    data: newStudent
+    data: student
   });
 });
 
 // ============================================
-// 7. UPDATE A STUDENT - PUT
+// 9. REPLACE STUDENT - PUT
 // ============================================
 
-app.put("/api/students/:id", (req, res) => {
-  const id = Number(req.params.id);
+app.put("/api/students/:id", parseStudentId, (req, res) => {
+  const validation = validateStudent(req.body);
 
-  if (!Number.isInteger(id) || id < 1) {
-    return res.status(400).json({
-      success: false,
-      message: "Student ID must be a positive integer."
-    });
+  if (!validation.valid) {
+    return sendValidationError(res, validation);
   }
 
-  const index = students.findIndex(item => item.id === id);
-
-  if (index === -1) {
-    return res.status(404).json({
-      success: false,
-      message: "Student not found."
-    });
-  }
-
-  const { name, course, age } = req.body || {};
-
-  if (
-    typeof name !== "string" ||
-    name.trim().length < 2 ||
-    name.trim().length > 80 ||
-    typeof course !== "string" ||
-    course.trim().length < 2 ||
-    course.trim().length > 100 ||
-    !Number.isInteger(age) ||
-    age < 16 ||
-    age > 100
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Provide a valid name, course, and age to replace the student."
-    });
-  }
-
-  students[index] = {
-    id,
-    name: name.trim(),
-    course: course.trim(),
-    age
-  };
-
-  res.status(200).json({
-    success: true,
-    message: "Student replaced successfully.",
-    data: students[index]
-  });
-});
-
-// ============================================
-// 8. PARTIALLY UPDATE A STUDENT - PATCH
-// ============================================
-
-app.patch("/api/students/:id", (req, res) => {
-  const id = Number(req.params.id);
-
-  if (!Number.isInteger(id) || id < 1) {
-    return res.status(400).json({
-      success: false,
-      message: "Student ID must be a positive integer."
-    });
-  }
-
-  const student = students.find(item => item.id === id);
+  const student = studentRepository.replace(
+    req.studentId,
+    req.body
+  );
 
   if (!student) {
     return res.status(404).json({
@@ -223,72 +345,35 @@ app.patch("/api/students/:id", (req, res) => {
     });
   }
 
-  const updates = req.body;
+  res.status(200).json({
+    success: true,
+    message: "Student replaced successfully.",
+    data: student
+  });
+});
 
-  if (
-    !updates ||
-    typeof updates !== "object" ||
-    Array.isArray(updates) ||
-    Object.keys(updates).length === 0
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Provide at least one field to update."
-    });
+// ============================================
+// 10. PARTIALLY UPDATE STUDENT - PATCH
+// ============================================
+
+app.patch("/api/students/:id", parseStudentId, (req, res) => {
+  const validation = validateStudent(req.body, true);
+
+  if (!validation.valid) {
+    return sendValidationError(res, validation);
   }
 
-  const allowedFields = ["name", "course", "age"];
-  const invalidFields = Object.keys(updates).filter(
-    key => !allowedFields.includes(key)
+  const student = studentRepository.update(
+    req.studentId,
+    req.body
   );
 
-  if (invalidFields.length > 0) {
-    return res.status(400).json({
+  if (!student) {
+    return res.status(404).json({
       success: false,
-      message: "Unsupported field(s) provided.",
-      fields: invalidFields
+      message: "Student not found."
     });
   }
-
-  if (
-    "name" in updates &&
-    (typeof updates.name !== "string" ||
-      updates.name.trim().length < 2 ||
-      updates.name.trim().length > 80)
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Name must be between 2 and 80 characters."
-    });
-  }
-
-  if (
-    "course" in updates &&
-    (typeof updates.course !== "string" ||
-      updates.course.trim().length < 2 ||
-      updates.course.trim().length > 100)
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Course must be between 2 and 100 characters."
-    });
-  }
-
-  if (
-    "age" in updates &&
-    (!Number.isInteger(updates.age) ||
-      updates.age < 16 ||
-      updates.age > 100)
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Age must be an integer between 16 and 100."
-    });
-  }
-
-  if ("name" in updates) student.name = updates.name.trim();
-  if ("course" in updates) student.course = updates.course.trim();
-  if ("age" in updates) student.age = updates.age;
 
   res.status(200).json({
     success: true,
@@ -298,39 +383,28 @@ app.patch("/api/students/:id", (req, res) => {
 });
 
 // ============================================
-// 9. DELETE A STUDENT
+// 11. DELETE STUDENT
 // ============================================
 
-app.delete("/api/students/:id", (req, res) => {
-  const id = Number(req.params.id);
+app.delete("/api/students/:id", parseStudentId, (req, res) => {
+  const student = studentRepository.remove(req.studentId);
 
-  if (!Number.isInteger(id) || id < 1) {
-    return res.status(400).json({
-      success: false,
-      message: "Student ID must be a positive integer."
-    });
-  }
-
-  const index = students.findIndex(item => item.id === id);
-
-  if (index === -1) {
+  if (!student) {
     return res.status(404).json({
       success: false,
       message: "Student not found."
     });
   }
 
-  const deletedStudent = students.splice(index, 1)[0];
-
   res.status(200).json({
     success: true,
     message: "Student deleted successfully.",
-    data: deletedStudent
+    data: student
   });
 });
 
 // ============================================
-// 10. HEALTH CHECK
+// 12. HEALTH CHECK
 // ============================================
 
 app.get("/health", (req, res) => {
@@ -342,7 +416,7 @@ app.get("/health", (req, res) => {
 });
 
 // ============================================
-// 11. 404 HANDLER
+// 13. 404 HANDLER
 // ============================================
 
 app.use((req, res) => {
@@ -353,7 +427,7 @@ app.use((req, res) => {
 });
 
 // ============================================
-// 12. ERROR HANDLER
+// 14. CENTRAL ERROR HANDLER
 // ============================================
 
 app.use((err, req, res, next) => {
@@ -384,25 +458,29 @@ app.use((err, req, res, next) => {
 });
 
 // ============================================
-// 13. START SERVER
+// 15. START SERVER
 // ============================================
 
-const server = app.listen(PORT, () => {
-  console.log(`REST API running at http://localhost:${PORT}`);
-});
-
-function shutdown() {
-  console.log("Shutting down server...");
-
-  server.close(error => {
-    if (error) {
-      console.error("Shutdown failed:", error);
-      process.exitCode = 1;
-    } else {
-      console.log("Server closed successfully.");
-    }
+if (require.main === module) {
+  const server = app.listen(PORT, () => {
+    console.log(`REST API running at http://localhost:${PORT}`);
   });
+
+  function shutdown() {
+    console.log("Shutting down server...");
+
+    server.close(error => {
+      if (error) {
+        console.error("Shutdown failed:", error);
+        process.exitCode = 1;
+      } else {
+        console.log("Server closed successfully.");
+      }
+    });
+  }
+
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
 
-process.once("SIGINT", shutdown);
-process.once("SIGTERM", shutdown);
+module.exports = app;
