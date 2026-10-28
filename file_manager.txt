@@ -1,0 +1,322 @@
+# File Manager
+
+**Module:** Node.js Modules & File System
+
+**Assignment Title:** File Manager
+
+## 1. Introduction
+
+The File Manager is a command-line application developed using Node.js. It allows users to create, read, update, and delete files using simple commands.
+
+This project uses Node.js's built-in `fs` (File System) and `path` modules to perform file operations.
+
+## 2. Objectives
+
+- Create new files.
+- Read the contents of existing files.
+- Update file contents.
+- Delete files.
+- Handle errors when files do not exist or operations fail.
+- Organize code using reusable functions and modules.
+
+## 3. Technologies Used
+
+- Node.js
+- JavaScript
+- File System (`fs`) module
+- Path (`path`) module
+- Command Line Interface (CLI)
+
+## 4. Project Structure
+
+```text
+nodejs-file-manager/
+├── file_manager.js
+├── package.json
+├── README.md
+└── files/
+```
+
+The `files` directory stores the files managed by the application.
+
+## 5. Source Code
+
+Create a file named `file_manager.js` and add the following code.
+
+```javascript
+const fs = require("fs/promises");
+const path = require("path");
+const readline = require("readline/promises");
+const { stdin, stdout } = require("process");
+
+const FILES_DIR = path.join(__dirname, "files");
+
+// Create the files directory if it does not exist.
+async function initialize() {
+  await fs.mkdir(FILES_DIR, { recursive: true });
+}
+
+// Resolve a filename safely inside the files directory.
+function getFilePath(filename) {
+  if (
+    !filename ||
+    filename === "." ||
+    filename === ".." ||
+    path.basename(filename) !== filename ||
+    filename.includes("/") ||
+    filename.includes("\\")
+  ) {
+    throw new Error("Please provide a valid filename without a path.");
+  }
+
+  return path.join(FILES_DIR, filename);
+}
+
+// CREATE: Create a new file.
+async function createFile(filename, content) {
+  const filePath = getFilePath(filename);
+
+  try {
+    await fs.writeFile(filePath, content, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+    console.log("File created successfully.");
+  } catch (error) {
+    if (error.code === "EEXIST") {
+      console.error("Error: A file with this name already exists.");
+    } else {
+      console.error("Error creating file:", error.message);
+    }
+  }
+}
+
+// READ: Display the contents of a file.
+async function readFile(filename) {
+  try {
+    const content = await fs.readFile(getFilePath(filename), "utf8");
+    console.log("\nFile Contents:\n");
+    console.log(content);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      console.error("Error: File not found.");
+    } else {
+      console.error("Error reading file:", error.message);
+    }
+  }
+}
+
+// UPDATE: Replace the contents of an existing file.
+async function updateFile(filename, content) {
+  try {
+    const filePath = getFilePath(filename);
+
+    // Verify the file exists before updating it.
+    await fs.access(filePath);
+    await fs.writeFile(filePath, content, "utf8");
+
+    console.log("File updated successfully.");
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      console.error("Error: File not found.");
+    } else {
+      console.error("Error updating file:", error.message);
+    }
+  }
+}
+
+// DELETE: Remove an existing file.
+async function deleteFile(filename) {
+  try {
+    await fs.unlink(getFilePath(filename));
+    console.log("File deleted successfully.");
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      console.error("Error: File not found.");
+    } else {
+      console.error("Error deleting file:", error.message);
+    }
+  }
+}
+
+// Display the available commands.
+function showMenu() {
+  console.log("\n===== FILE MANAGER =====");
+  console.log("1. Create File");
+  console.log("2. Read File");
+  console.log("3. Update File");
+  console.log("4. Delete File");
+  console.log("5. Exit");
+}
+
+// Run the command-line application.
+async function main() {
+  await initialize();
+
+  const rl = readline.createInterface({ input: stdin, output: stdout });
+
+  try {
+    let running = true;
+
+    while (running) {
+      showMenu();
+
+      const choice = (await rl.question("Choose an option: ")).trim();
+
+      switch (choice) {
+        case "1": {
+          const filename = (await rl.question("Enter filename: ")).trim();
+          const content = await rl.question("Enter file content: ");
+          await createFile(filename, content);
+          break;
+        }
+
+        case "2": {
+          const filename = (await rl.question("Enter filename: ")).trim();
+          await readFile(filename);
+          break;
+        }
+
+        case "3": {
+          const filename = (await rl.question("Enter filename: ")).trim();
+          const content = await rl.question("Enter new content: ");
+          await updateFile(filename, content);
+          break;
+        }
+
+        case "4": {
+          const filename = (await rl.question("Enter filename: ")).trim();
+          await deleteFile(filename);
+          break;
+        }
+
+        case "5":
+          running = false;
+          console.log("Exiting File Manager. Goodbye!");
+          break;
+
+        default:
+          console.log("Invalid option. Please choose 1 to 5.");
+      }
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+main().catch((error) => {
+  console.error("Application error:", error.message);
+  process.exitCode = 1;
+});
+```
+
+## 6. How to Run the Project
+
+### Step 1: Install Node.js
+
+Download Node.js from https://nodejs.org/.
+
+Check the installation:
+
+```bash
+node --version
+npm --version
+```
+
+### Step 2: Create the project folder
+
+```bash
+mkdir nodejs-file-manager
+cd nodejs-file-manager
+```
+
+### Step 3: Initialize the project
+
+```bash
+npm init -y
+```
+
+### Step 4: Create the JavaScript file
+
+Create `file_manager.js` and paste the source code provided above.
+
+### Step 5: Run the application
+
+```bash
+node file_manager.js
+```
+
+No additional npm packages are required because the application uses built-in Node.js modules.
+
+## 7. Example Output
+
+```text
+===== FILE MANAGER =====
+1. Create File
+2. Read File
+3. Update File
+4. Delete File
+5. Exit
+
+Choose an option: 1
+Enter filename: notes.txt
+Enter file content: Learning Node.js File System
+File created successfully.
+```
+
+Reading the file:
+
+```text
+Choose an option: 2
+Enter filename: notes.txt
+
+File Contents:
+
+Learning Node.js File System
+```
+
+Updating the file:
+
+```text
+Choose an option: 3
+Enter filename: notes.txt
+Enter new content: Learning CRUD operations in Node.js
+File updated successfully.
+```
+
+Deleting the file:
+
+```text
+Choose an option: 4
+Enter filename: notes.txt
+File deleted successfully.
+```
+
+## 8. CRUD Operations Explained
+
+| Operation | Method | Purpose |
+|---|---|---|
+| Create | `fs.writeFile()` with `flag: "wx"` | Creates a new file without overwriting an existing file |
+| Read | `fs.readFile()` | Reads the file contents |
+| Update | `fs.writeFile()` | Replaces the existing file contents |
+| Delete | `fs.unlink()` | Deletes a file |
+
+The application uses the promise-based File System API with `async` and `await` to handle file operations asynchronously.
+
+## 9. Error Handling
+
+The application handles common errors, including:
+
+- **File already exists:** Prevents accidental overwriting during creation.
+- **File not found:** Displays an error when reading, updating, or deleting a missing file.
+- **Invalid filename:** Rejects path components so users cannot select files outside the managed directory through the filename input.
+- **Unexpected errors:** Displays an error message instead of silently failing.
+- **Invalid menu choice:** Asks users to select a valid option.
+
+## 10. Conclusion
+
+This File Manager project demonstrates how to use Node.js modules and the File System API to build a practical command-line application. It implements all four CRUD operations, organizes functionality into reusable functions, and includes basic error handling.
+
+The project provides a foundation for learning file management, asynchronous programming, module usage, and command-line application development in Node.js.
+
+**Thank you.**
