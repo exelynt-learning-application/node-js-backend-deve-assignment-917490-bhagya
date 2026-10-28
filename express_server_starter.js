@@ -1,71 +1,53 @@
 
 const express = require("express");
-const fs = require("node:fs");
+const dotenv = require("dotenv");
 const path = require("node:path");
 
-// ========================================
-// EXPRESS SERVER STARTER KIT
-// ========================================
+// ============================================
+// 1. CONFIGURATION
+// ============================================
 
-// Load environment variables from .env if available.
-// No dotenv package is required for this implementation.
-function loadEnv() {
-  const envPath = path.join(__dirname, ".env");
-
-  if (!fs.existsSync(envPath)) return;
-
-  const content = fs.readFileSync(envPath, "utf8");
-
-  for (const line of content.split(/\r?\n/)) {
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith("#")) continue;
-
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) continue;
-
-    const key = trimmed.slice(0, separator).trim();
-    let value = trimmed.slice(separator + 1).trim();
-
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-
-    if (key && process.env[key] === undefined) {
-      process.env[key] = value;
-    }
-  }
-}
-
-loadEnv();
+dotenv.config({
+  path: path.resolve(process.cwd(), ".env")
+});
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 
-// ========================================
-// CONFIGURATION
-// ========================================
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error("PORT must be between 1 and 65535.");
+}
 
 app.disable("x-powered-by");
 
-app.use(express.json({ limit: "100kb" }));
-app.use(express.urlencoded({ extended: true, limit: "100kb" }));
+// ============================================
+// 2. BUILT-IN MIDDLEWARE
+// ============================================
 
-// ========================================
-// REQUEST LOGGING MIDDLEWARE
-// ========================================
+app.use(express.json({ limit: "100kb" }));
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "100kb"
+  })
+);
+
+// ============================================
+// 3. REQUEST LOGGER MIDDLEWARE
+// ============================================
 
 app.use((req, res, next) => {
   const startTime = Date.now();
 
   res.on("finish", () => {
+    // Remove control characters from logged paths.
+    const safePath = req.originalUrl.replace(/[\r\n\t]/g, "");
+
     console.log(
       `[${new Date().toISOString()}] ` +
-      `${req.method} ${req.originalUrl} ` +
+      `${req.method} ${safePath} ` +
       `${res.statusCode} ${Date.now() - startTime}ms`
     );
   });
@@ -73,9 +55,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// ========================================
-// ROUTES
-// ========================================
+// ============================================
+// 4. CONTROLLERS AND ROUTES
+// ============================================
 
 // Home route
 app.get("/", (req, res) => {
@@ -86,7 +68,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// Health check route
+// Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -96,28 +78,36 @@ app.get("/health", (req, res) => {
   });
 });
 
-// API information route
+// API information
 app.get("/api", (req, res) => {
   res.status(200).json({
     success: true,
     message: "Express API is running.",
-    availableRoutes: [
+    routes: [
       "GET /",
       "GET /health",
       "GET /api",
-      "GET /api/greeting?name=Rahul"
+      "GET /api/greeting?name=Rahul",
+      "POST /api/demo"
     ]
   });
 });
 
-// Example route using query parameters
+// Greeting route with input validation
 app.get("/api/greeting", (req, res) => {
-  const name = req.query.name || "Developer";
+  const name = req.query.name === undefined
+    ? "Developer"
+    : req.query.name;
 
-  if (typeof name !== "string" || name.trim().length === 0) {
+  if (
+    typeof name !== "string" ||
+    name.trim().length === 0 ||
+    name.trim().length > 50 ||
+    !/^[\p{L}\p{N} .'-]+$/u.test(name.trim())
+  ) {
     return res.status(400).json({
       success: false,
-      message: "Please provide a valid name."
+      message: "Name must contain 1–50 valid letters, numbers or spaces."
     });
   }
 
@@ -129,12 +119,26 @@ app.get("/api/greeting", (req, res) => {
 
 // Example POST route
 app.post("/api/demo", (req, res) => {
-  const { title, description } = req.body || {};
+  const { title, description = "" } = req.body || {};
 
-  if (typeof title !== "string" || !title.trim()) {
+  if (
+    typeof title !== "string" ||
+    title.trim().length === 0 ||
+    title.trim().length > 100
+  ) {
     return res.status(400).json({
       success: false,
-      message: "The title field is required."
+      message: "Title is required and must not exceed 100 characters."
+    });
+  }
+
+  if (
+    typeof description !== "string" ||
+    description.length > 500
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Description must be a string of at most 500 characters."
     });
   }
 
@@ -143,29 +147,30 @@ app.post("/api/demo", (req, res) => {
     message: "Demo data received successfully.",
     data: {
       title: title.trim(),
-      description:
-        typeof description === "string" ? description.trim() : ""
+      description: description.trim()
     }
   });
 });
 
-// ========================================
-// 404 HANDLER
-// ========================================
+// ============================================
+// 5. 404 MIDDLEWARE
+// ============================================
 
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route not found: ${req.method} ${req.originalUrl}`
+    message: "Route not found."
   });
 });
 
-// ========================================
-// GLOBAL ERROR HANDLER
-// ========================================
+// ============================================
+// 6. CENTRAL ERROR HANDLER
+// ============================================
 
 app.use((err, req, res, next) => {
-  console.error(`[ERROR] ${err.stack || err.message}`);
+  console.error(
+    `[ERROR] ${req.method} ${req.path}: ${err.message}`
+  );
 
   if (res.headersSent) {
     return next(err);
@@ -191,30 +196,59 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ========================================
-// SERVER INITIALIZATION
-// ========================================
+// ============================================
+// 7. SERVER INITIALIZATION
+// ============================================
 
 const server = app.listen(PORT, () => {
-  console.log("==================================");
-  console.log(" EXPRESS SERVER STARTER KIT");
-  console.log("==================================");
-  console.log(`Environment: ${NODE_ENV}`);
-  console.log(`Server URL: http://localhost:${PORT}`);
-  console.log("Press Ctrl+C to stop the server.");
+  console.log("======================================");
+  console.log("     EXPRESS SERVER STARTER KIT");
+  console.log("======================================");
+  console.log(`Environment : ${NODE_ENV}`);
+  console.log(`Server URL  : http://localhost:${PORT}`);
+  console.log("Server is running successfully.");
 });
 
-server.on("error", (err) => {
-  console.error(`Server failed to start: ${err.message}`);
+server.on("error", (error) => {
+  console.error(`Server error: ${error.message}`);
   process.exitCode = 1;
 });
 
-// Graceful shutdown
-process.on("SIGINT", () => {
-  console.log("\nShutting down server...");
+// ============================================
+// 8. GRACEFUL SHUTDOWN
+// ============================================
 
-  server.close(() => {
+let shuttingDown = false;
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  console.log(`\n${signal} received. Closing server...`);
+
+  const timeout = setTimeout(() => {
+    console.error("Shutdown timed out. Forcing exit.");
+    process.exit(1);
+  }, 10000);
+
+  timeout.unref();
+
+  server.close((error) => {
+    clearTimeout(timeout);
+
+    if (error) {
+      console.error(`Shutdown error: ${error.message}`);
+      process.exitCode = 1;
+      return;
+    }
+
     console.log("Server closed successfully.");
-    process.exit(0);
   });
-});
+
+  if (typeof server.closeIdleConnections === "function") {
+    server.closeIdleConnections();
+  }
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
